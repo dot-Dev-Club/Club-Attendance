@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+SQLAlchemy
+pydantic
+python-multipart
+gspread
+google-auth
+google-auth-oauthlib
+google-api-python-client
