@@ -52,11 +52,11 @@ export function History() {
 
   const getStatusBadge = (status: string) => {
     const styles = {
-      present: 'bg-green-100 text-green-700',
-      absent: 'bg-red-100 text-red-700',
-      late: 'bg-orange-100 text-orange-700',
+      present: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
+      absent: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+      late: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
     };
-    return styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-700';
+    return styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
   };
 
   const modalSession = modalSessionId ? clubSessions.find((s) => s.id === modalSessionId) : null;
@@ -66,12 +66,15 @@ export function History() {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-bold text-gray-900">Attendance History</h1>
-        <p className="text-gray-600 mt-1">
-          View detailed attendance records for all sessions
-        </p>
-      </motion.div>
+      {/* Sticky Header */}
+      <div className="sticky-header">
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Attendance History</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            View detailed attendance records for all sessions
+          </p>
+        </motion.div>
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -79,13 +82,13 @@ export function History() {
         transition={{ delay: 0.05 }}
       >
         <Card>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Sessions</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Sessions</h2>
           <div className="space-y-2">
             {clubSessions.map((session) => (
-              <div key={session.id} className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50">
+              <div key={session.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                 <div>
-                  <p className="font-medium text-gray-900">{session.name}</p>
-                  <p className="text-xs text-gray-500">{new Date(session.date).toLocaleDateString()} at {session.time}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{session.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(session.date).toLocaleDateString()} at {session.time}</p>
                 </div>
                 <div>
                   <Button onClick={() => setModalSessionId(session.id)} size="sm" variant="ghost">See Attendance</Button>
@@ -94,7 +97,7 @@ export function History() {
             ))}
 
             {clubSessions.length === 0 && (
-              <p className="text-sm text-gray-500">No sessions available.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">No sessions available.</p>
             )}
           </div>
         </Card>
@@ -107,11 +110,11 @@ export function History() {
       >
         <Card>
           <div className="flex items-center gap-3">
-            <Filter className="w-5 h-5 text-gray-600" />
+            <Filter className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             <select
               value={selectedStudent}
               onChange={(e) => setSelectedStudent(e.target.value)}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-gray-900 dark:text-gray-100"
             >
               <option value="all">All Students</option>
               {clubStudents.map((student) => (
@@ -135,17 +138,17 @@ export function History() {
             <Card>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-md shadow-blue-500/25">
                     {getStatusIcon(record.status)}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">
                       {record.student?.name}
                     </h3>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
                       {record.session?.name}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                       {record.session?.date &&
                         new Date(record.session.date).toLocaleDateString(
                           'en-US',
@@ -170,7 +173,7 @@ export function History() {
                     {record.status.charAt(0).toUpperCase() +
                       record.status.slice(1)}
                   </span>
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                     Marked on{' '}
                     {new Date(record.markedAt).toLocaleDateString()}
                   </p>
@@ -187,11 +190,11 @@ export function History() {
           animate={{ opacity: 1 }}
           className="text-center py-16"
         >
-          <HistoryIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          <HistoryIcon className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
             No attendance records
           </h3>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             {selectedStudent === 'all'
               ? 'Start marking attendance to see records here'
               : 'No attendance records for this student'}
@@ -206,7 +209,7 @@ export function History() {
       >
         {modalSession ? (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               {new Date(modalSession.date).toLocaleDateString()} at {modalSession.time}
             </p>
 
@@ -216,10 +219,10 @@ export function History() {
                 const status = record?.status;
 
                 return (
-                  <div key={student.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                  <div key={student.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                     <div>
-                      <p className="font-medium text-gray-900">{student.name}</p>
-                      <p className="text-xs text-gray-500">{student.email}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{student.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{student.email}</p>
                     </div>
                     <div>
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(status || '')}`}>
@@ -236,7 +239,7 @@ export function History() {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-gray-500">No session selected.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">No session selected.</p>
         )}
       </Modal>
     </div>

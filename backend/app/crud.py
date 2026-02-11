@@ -67,6 +67,8 @@ def update_student(db: Session, student_id: str, patch: dict):
             setattr(s, 'club_id', v)
         elif k == 'enrollmentDate':
             setattr(s, 'enrollment_date', v)
+        elif k == 'registerNo':
+            setattr(s, 'register_no', v)
         else:
             setattr(s, k, v)
     db.add(s)

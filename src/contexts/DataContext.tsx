@@ -1,13 +1,15 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Student, Session, AttendanceRecord } from '../types';
+import { Student, Session, AttendanceRecord, User } from '../types';
 import { useAuth } from './AuthContext';
 
 interface DataContextType {
   students: Student[];
   sessions: Session[];
   attendanceRecords: AttendanceRecord[];
+  clubUsers: { id: string; name: string; email: string; role: string }[];
   refresh: () => Promise<void>;
   saveAttendance: (sessionId: string, markedBy: string, items: { studentId: string; status: string }[]) => Promise<AttendanceRecord[]>;
+  saveToSheet: (sessionId: string, email: string) => Promise<any>;
   addStudent: (student: Partial<Student>) => Promise<Student | null>;
   updateStudent: (id: string, patch: Partial<Student>) => Promise<Student | null>;
   deleteStudent: (id: string) => Promise<boolean>;
@@ -23,6 +25,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [students, setStudents] = useState<Student[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [clubUsers, setClubUsers] = useState<{ id: string; name: string; email: string; role: string }[]>([]);
 
   const API = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
@@ -38,6 +41,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       clubId: d.clubId || d.club_id,
       createdBy: d.createdBy || d.created_by,
       createdAt: d.createdAt || d.created_at,
+      sheetSavedAt: d.sheetSavedAt || d.sheet_saved_at || null,
     })));
   };
 
@@ -49,8 +53,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
       id: d.id,
       name: d.name,
       email: d.email,
+      registerNo: d.registerNo || d.register_no || '',
       clubId: d.clubId || d.club_id,
       enrollmentDate: d.enrollmentDate || d.enrollment_date,
+    })));
+  };
+
+  const fetchClubUsers = async (clubId: string) => {
+    const res = await fetch(`${API}/users?clubId=${clubId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setClubUsers(data.map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      email: d.email,
+      role: d.role,
     })));
   };
 
@@ -79,7 +96,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const refresh = async () => {
     if (!user) return;
     try {
-      await Promise.all([fetchSessions(user.clubId), fetchStudents(user.clubId)]);
+      await Promise.all([fetchSessions(user.clubId), fetchStudents(user.clubId), fetchClubUsers(user.clubId)]);
       await fetchAttendanceForClub(user.clubId);
     } catch (e) {
       console.error('Data refresh failed', e);
@@ -125,6 +142,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .map((r) => ({ studentId: r.studentId, status: r.status }));
     const payload = {
       email,
+      sessionId,
       sessionName: s.name,
       sessionDate: s.date,
       sessionTime: s.time,
@@ -139,8 +157,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const text = await res.text();
       throw new Error(`Failed to save sheet: ${text}`);
     }
-    const data = await res.json();
-    return data;
+    return await res.json();
   };
 
   const addStudent = async (student: Partial<Student>) => {
@@ -150,6 +167,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         name: student.name,
         email: student.email,
         club_id: student.clubId || user?.clubId,
+        register_no: student.registerNo || '',
         enrollment_date: student.enrollmentDate,
       };
       const res = await fetch(`${API}/students`, {
@@ -163,6 +181,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         id: data.id,
         name: data.name,
         email: data.email,
+        registerNo: data.registerNo || data.register_no || '',
         clubId: data.clubId || data.club_id,
         enrollmentDate: data.enrollmentDate || data.enrollment_date,
       };
@@ -180,6 +199,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (patchObj.name) payload.name = patchObj.name;
       if (patchObj.email) payload.email = patchObj.email;
       if (patchObj.enrollmentDate) payload.enrollmentDate = patchObj.enrollmentDate;
+      if (patchObj.registerNo !== undefined) payload.registerNo = patchObj.registerNo;
       const res = await fetch(`${API}/students/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -191,6 +211,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         id: data.id,
         name: data.name,
         email: data.email,
+        registerNo: data.registerNo || data.register_no || '',
         clubId: data.clubId || data.club_id,
         enrollmentDate: data.enrollmentDate || data.enrollment_date,
       };
@@ -302,6 +323,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         students,
         sessions,
         attendanceRecords,
+        clubUsers,
         refresh,
         saveAttendance,
         saveToSheet,

@@ -3,6 +3,8 @@ uvicorn[standard]
 SQLAlchemy
 pydantic
 python-multipart
+passlib[bcrypt]
+bcrypt<4.1
 gspread
 google-auth
 google-auth-oauthlib

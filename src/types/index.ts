@@ -13,12 +13,15 @@ export interface User {
   email: string;
   role: UserRole;
   clubId: string;
+  clubName?: string;
+  clubColor?: string;
 }
 
 export interface Student {
   id: string;
   name: string;
   email: string;
+  registerNo?: string;
   clubId: string;
   enrollmentDate: string;
 }
@@ -31,6 +34,7 @@ export interface Session {
   clubId: string;
   createdBy: string;
   createdAt: string;
+  sheetSavedAt?: string | null;
 }
 
 export interface AttendanceRecord {

@@ -20,12 +20,19 @@ class ClubOut(BaseModel):
         allow_population_by_field_name = True
 
 
+class LoginPayload(BaseModel):
+    email: str
+    password: str
+
+
 class UserOut(BaseModel):
     id: str
     name: str
     email: str
     role: UserRole
     clubId: str = Field(..., alias='club_id')
+    clubName: Optional[str] = Field(None)
+    clubColor: Optional[str] = Field(None)
 
     class Config:
         orm_mode = True
@@ -37,6 +44,7 @@ class StudentOut(BaseModel):
     id: str
     name: str
     email: str
+    registerNo: Optional[str] = Field(None, alias='register_no')
     clubId: str = Field(..., alias='club_id')
     enrollmentDate: Optional[str] = Field(None, alias='enrollment_date')
 
@@ -50,6 +58,7 @@ class StudentCreate(BaseModel):
     id: Optional[str]
     name: str
     email: str
+    registerNo: Optional[str] = Field(None, alias='register_no')
     clubId: str = Field(..., alias='club_id')
     enrollmentDate: Optional[str] = Field(None, alias='enrollment_date')
 
@@ -57,6 +66,7 @@ class StudentCreate(BaseModel):
 class StudentUpdate(BaseModel):
     name: Optional[str]
     email: Optional[str]
+    registerNo: Optional[str] = Field(None, alias='register_no')
     enrollmentDate: Optional[str] = Field(None, alias='enrollment_date')
 
 
@@ -68,6 +78,7 @@ class SessionOut(BaseModel):
     clubId: str = Field(..., alias='club_id')
     createdBy: str = Field(..., alias='created_by')
     createdAt: Optional[datetime] = Field(None, alias='created_at')
+    sheetSavedAt: Optional[datetime] = Field(None, alias='sheet_saved_at')
 
     class Config:
         orm_mode = True
@@ -116,7 +127,9 @@ class AttendanceOut(BaseModel):
 
 
 class SheetsSave(BaseModel):
+    """Save attendance to Google Sheets for a session."""
     email: str
+    sessionId: str = Field(..., alias='sessionId')
     sessionName: str = Field(..., alias='sessionName')
     sessionDate: str = Field(..., alias='sessionDate')
     sessionTime: Optional[str] = Field(None, alias='sessionTime')
