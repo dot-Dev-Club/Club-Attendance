@@ -31,7 +31,7 @@ export function ThemeToggle() {
     <button
       onClick={() => setIsDark((v) => !v)}
       title={isDark ? 'Switch to light' : 'Switch to dark'}
-      className="p-2 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:shadow-sm transition-all"
+      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:shadow-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
     >
       {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
     </button>

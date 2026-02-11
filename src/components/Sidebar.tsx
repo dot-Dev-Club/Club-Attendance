@@ -1,34 +1,38 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Calendar,
   Users,
-  ClipboardList,
-  History,
   LogOut,
   Menu,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { clubs } from '../data/mockData';
 import { useState } from 'react';
 import { ThemeToggle } from './ui/ThemeToggle';
+import { Modal } from './ui/Modal';
+import { Button } from './ui/Button';
 
 interface SidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+export function Sidebar({ currentPage, onNavigate, collapsed, onToggleCollapse }: SidebarProps) {
   const { user, logout } = useAuth();
-  const [isOpen, setIsOpen] = useState(true);
-  const club = clubs.find((c) => c.id === user?.clubId);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const clubName = user?.clubName || 'Club';
+  const clubColor = user?.clubColor || '#3B82F6';
 
   const adminMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'sessions', label: 'Sessions', icon: Calendar },
     { id: 'students', label: 'Students', icon: Users },
-    { id: 'history', label: 'History', icon: History },
   ];
 
   const tutorMenuItems = [
@@ -37,94 +41,207 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
   const menuItems = user?.role === 'admin' ? adminMenuItems : tutorMenuItems;
 
-  return (
-    <>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg"
-      >
-        {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-      </button>
+  const sidebarWidth = collapsed ? 'w-[72px]' : 'w-[260px]';
 
-      <motion.aside
-        initial={{ x: -280 }}
-        animate={{ x: isOpen ? 0 : -280 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed left-0 top-0 h-screen w-70 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 shadow-xl z-40 flex flex-col"
-      >
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3"
+  const sidebarContent = (isMobile: boolean) => (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className={`p-4 border-b border-slate-200/60 dark:border-slate-700/60 ${collapsed && !isMobile ? 'px-3' : 'px-5'}`}>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-md"
+            style={{ backgroundColor: clubColor }}
           >
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl"
-              style={{ backgroundColor: club?.color }}
-            >
-              {club?.name.charAt(0)}
-            </div>
-            <div className="flex-1">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{club?.name}</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{user?.role}</p>
-            </div>
-            <div className="ml-2">
+            {clubName.charAt(0)}
+          </div>
+          <AnimatePresence>
+            {(!collapsed || isMobile) && (
+              <motion.div
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                className="overflow-hidden flex-1 min-w-0"
+              >
+                <h1 className="text-base font-bold text-slate-900 dark:text-slate-100 truncate">{clubName}</h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{user?.role}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {(!collapsed || isMobile) && (
+            <div className="ml-auto flex-shrink-0">
               <ThemeToggle />
             </div>
-          </motion.div>
+          )}
         </div>
+      </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {menuItems.map((item, index) => {
-            const Icon = item.icon;
-            const isActive = currentPage === item.id;
+      {/* Navigation */}
+      <nav className={`flex-1 py-3 space-y-1 overflow-y-auto ${collapsed && !isMobile ? 'px-2' : 'px-3'}`}>
+        {menuItems.map((item, index) => {
+          const Icon = item.icon;
+          const isActive = currentPage === item.id;
 
-            return (
-              <motion.button
-                key={item.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                onClick={() => onNavigate(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                  isActive
-                    ? 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300 font-semibold'
-                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
-              </motion.button>
-            );
-          })}
-        </nav>
+          return (
+            <motion.button
+              key={item.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.08 }}
+              onClick={() => {
+                onNavigate(item.id);
+                if (isMobile) setMobileOpen(false);
+              }}
+              className={`group relative w-full flex items-center gap-3 rounded-xl transition-all ${
+                collapsed && !isMobile ? 'px-3 py-3 justify-center' : 'px-4 py-2.5'
+              } ${
+                isActive
+                  ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 font-semibold shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-slate-100'
+              }`}
+            >
+              <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600 dark:text-primary-400' : ''}`} />
+              <AnimatePresence>
+                {(!collapsed || isMobile) && (
+                  <motion.span
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: 'auto' }}
+                    exit={{ opacity: 0, width: 0 }}
+                    className="overflow-hidden whitespace-nowrap text-sm"
+                  >
+                    {item.label}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+              {collapsed && !isMobile && (
+                <span className="sidebar-tooltip">{item.label}</span>
+              )}
+            </motion.button>
+          );
+        })}
+      </nav>
 
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user?.name}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{user?.email}</p>
+      {/* Footer  */}
+      <div className={`border-t border-slate-200/60 dark:border-slate-700/60 ${collapsed && !isMobile ? 'p-2' : 'p-3'}`}>
+        {/* Theme toggle when collapsed */}
+        {collapsed && !isMobile && (
+          <div className="flex justify-center mb-2">
+            <ThemeToggle />
           </div>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900 transition-all font-medium"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </motion.button>
-        </div>
+        )}
+
+        {/* User info – only when expanded */}
+        <AnimatePresence>
+          {(!collapsed || isMobile) && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="mb-2 p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl"
+            >
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{user?.name}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{user?.email}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setLogoutConfirmOpen(true)}
+          className={`w-full flex items-center gap-3 rounded-xl text-danger-600 dark:text-danger-400 hover:bg-danger-50 dark:hover:bg-danger-900/20 transition-all font-medium ${
+            collapsed && !isMobile ? 'px-3 py-3 justify-center' : 'px-4 py-2.5'
+          }`}
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          <AnimatePresence>
+            {(!collapsed || isMobile) && (
+              <motion.span
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                className="overflow-hidden whitespace-nowrap text-sm"
+              >
+                Logout
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Mobile toggle button */}
+      <button
+        onClick={() => setMobileOpen(!mobileOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700"
+      >
+        {mobileOpen ? <X className="w-5 h-5 text-slate-700 dark:text-slate-200" /> : <Menu className="w-5 h-5 text-slate-700 dark:text-slate-200" />}
+      </button>
+
+      {/* Desktop sidebar */}
+      <motion.aside
+        animate={{ width: collapsed ? 72 : 260 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className={`hidden lg:flex fixed left-0 top-0 h-screen bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-200/60 dark:border-slate-700/60 shadow-soft z-40 flex-col overflow-visible`}
+      >
+        {sidebarContent(false)}
+
+        {/* Collapse toggle button */}
+        <motion.button
+          onClick={onToggleCollapse}
+          animate={{ left: collapsed ? 60 : 248 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="fixed top-7 w-7 h-7 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all hover:bg-slate-50 dark:hover:bg-slate-700 z-50 cursor-pointer"
+        >
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+          ) : (
+            <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+          )}
+        </motion.button>
       </motion.aside>
 
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setIsOpen(false)}
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
-        />
-      )}
+      {/* Mobile sidebar */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileOpen(false)}
+              className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
+            />
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="lg:hidden fixed left-0 top-0 h-screen w-[260px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 shadow-xl z-40 flex flex-col"
+            >
+              {sidebarContent(true)}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Logout Confirmation Modal */}
+      <Modal isOpen={logoutConfirmOpen} onClose={() => setLogoutConfirmOpen(false)} title="Confirm Logout">
+        <div className="space-y-4">
+          <p className="text-slate-600 dark:text-slate-300">Are you sure you want to logout?</p>
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setLogoutConfirmOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={() => { setLogoutConfirmOpen(false); logout(); }} className="flex-1">
+              <LogOut className="w-4 h-4" />
+              Logout
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }
