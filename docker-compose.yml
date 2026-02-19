@@ -1,0 +1,67 @@
+services:
+
+  # ─────────────────────────────────────────────────────────────────
+  # Backend – FastAPI / Uvicorn
+  # ─────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: club_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env # copy backend/.env.example → backend/.env
+    environment:
+      # Override the DATABASE_URL to use the named volume path
+      DATABASE_URL: sqlite:////data/club_attendance.db
+      FRONTEND_ORIGIN: http://localhost:80
+    volumes:
+      # Persist the SQLite database between container restarts
+      - db_data:/data
+      # Mount Google service-account / OAuth files without baking them into the image
+      - ./backend/client_secret.json:/app/client_secret.json:ro
+      - ./backend/oauth_token.json:/app/oauth_token.json
+    ports:
+      - "8000:8000"
+    networks:
+      - club_net
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─────────────────────────────────────────────────────────────────
+  # Frontend – React / Vite built + served by Nginx
+  # ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Passed at build time so Vite can embed the URL in the JS bundle
+        VITE_API_BASE: http://localhost:8000
+    container_name: club_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - club_net
+    depends_on:
+      - backend
+
+# ─────────────────────────────────────────────────────────────────
+# Named volumes
+# ─────────────────────────────────────────────────────────────────
+volumes:
+  db_data:
+    name: club_attendance_db
+
+# ─────────────────────────────────────────────────────────────────
+# Networks
+# ─────────────────────────────────────────────────────────────────
+networks:
+  club_net:
+    name: club_attendance_net
+    driver: bridge
