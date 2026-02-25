@@ -107,6 +107,105 @@ def _find_row_by_id(ws, col: int, search_id: str) -> Optional[int]:
         pass
     return None
 
+
+def _col_letter(n: int) -> str:
+    """Convert 1-based column number to letter (1='A', 26='Z', 27='AA')."""
+    result = ''
+    while n > 0:
+        n, remainder = divmod(n - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
+def _format_header_row(ws, num_cols: int, header_color=None):
+    """Bold the header row and apply a background color."""
+    if header_color is None:
+        header_color = {'red': 0.16, 'green': 0.45, 'blue': 0.87}  # nice blue
+    try:
+        end_col = _col_letter(num_cols)
+        ws.format(f'A1:{end_col}1', {
+            'textFormat': {'bold': True, 'fontSize': 11, 'foregroundColorStyle': {'rgbColor': {'red': 1, 'green': 1, 'blue': 1}}},
+            'backgroundColor': header_color,
+            'horizontalAlignment': 'CENTER',
+            'borders': {
+                'bottom': {'style': 'SOLID', 'width': 2,
+                           'colorStyle': {'rgbColor': {'red': 0, 'green': 0, 'blue': 0}}}
+            }
+        })
+    except Exception as e:
+        LOG.warning('Could not format header: %s', e)
+
+
+def _format_data_area(ws, num_rows: int, num_cols: int):
+    """Apply light borders and alternating row colors to the data area."""
+    if num_rows < 2:
+        return
+    try:
+        end_col = _col_letter(num_cols)
+        # borders on entire table
+        ws.format(f'A1:{end_col}{num_rows}', {
+            'borders': {
+                'top': {'style': 'SOLID', 'colorStyle': {'rgbColor': {'red': 0.8, 'green': 0.8, 'blue': 0.8}}},
+                'bottom': {'style': 'SOLID', 'colorStyle': {'rgbColor': {'red': 0.8, 'green': 0.8, 'blue': 0.8}}},
+                'left': {'style': 'SOLID', 'colorStyle': {'rgbColor': {'red': 0.8, 'green': 0.8, 'blue': 0.8}}},
+                'right': {'style': 'SOLID', 'colorStyle': {'rgbColor': {'red': 0.8, 'green': 0.8, 'blue': 0.8}}},
+            }
+        })
+        # alternating row shading
+        for r in range(2, num_rows + 1):
+            if r % 2 == 0:
+                ws.format(f'A{r}:{end_col}{r}', {
+                    'backgroundColor': {'red': 0.95, 'green': 0.97, 'blue': 1.0}
+                })
+    except Exception as e:
+        LOG.warning('Could not format data area: %s', e)
+
+
+def _set_column_widths(ws, widths: list):
+    """Set pixel widths for columns. widths is a list of ints."""
+    try:
+        sheet_id = ws._properties['sheetId']
+        requests = []
+        for i, w in enumerate(widths):
+            requests.append({
+                'updateDimensionProperties': {
+                    'range': {
+                        'sheetId': sheet_id,
+                        'dimension': 'COLUMNS',
+                        'startIndex': i,
+                        'endIndex': i + 1,
+                    },
+                    'properties': {'pixelSize': w},
+                    'fields': 'pixelSize',
+                }
+            })
+        if requests:
+            ws.spreadsheet.batch_update({'requests': requests})
+    except Exception as e:
+        LOG.warning('Could not set column widths: %s', e)
+
+
+def _freeze_header(ws):
+    """Freeze the first row so headers stay visible."""
+    try:
+        ws.freeze(rows=1)
+    except Exception as e:
+        LOG.warning('Could not freeze header: %s', e)
+
+
+def _write_table(ws, headers: list, rows: list, col_widths: list = None, header_color=None):
+    """Clear the worksheet, write headers + data rows and format as a table."""
+    ws.clear()
+    all_data = [headers] + rows
+    end_col = _col_letter(len(headers))
+    ws.update(f'A1:{end_col}{len(all_data)}', all_data, value_input_option='USER_ENTERED')
+    _format_header_row(ws, len(headers), header_color)
+    _format_data_area(ws, len(all_data), len(headers))
+    _freeze_header(ws)
+    if col_widths:
+        _set_column_widths(ws, col_widths)
+
+
 # ============================================================================
 # SESSIONS SHEET  —  one spreadsheet per club: "{ClubName} Sessions"
 #   • One worksheet per year e.g. "2026"
@@ -134,8 +233,31 @@ def _get_year_worksheet(sh, year: int):
     return ws
 
 
+SESSION_COL_WIDTHS = [180, 90, 200, 120, 100, 80, 160, 200]
+
+
+def _build_session_row(session: dict) -> list:
+    """Build a flat row list from a session dict."""
+    week = _week_of_year(session.get('date', ''))
+    try:
+        dt = datetime.fromisoformat(session.get('date', ''))
+        day_name = dt.strftime('%A')
+    except Exception:
+        day_name = ''
+    return [
+        str(session.get('id', '')),
+        f"Week {week}",
+        session.get('name', ''),
+        session.get('date', ''),
+        day_name,
+        session.get('time', ''),
+        session.get('created_by', ''),
+        session.get('created_at', datetime.now().isoformat()),
+    ]
+
+
 def save_session_to_sheet(club_name: str, session: dict) -> dict:
-    """Add a new session row to the club's Sessions spreadsheet."""
+    """Upsert a session row in the club's Sessions spreadsheet."""
     try:
         client = _get_client()
     except Exception as e:
@@ -146,25 +268,14 @@ def save_session_to_sheet(club_name: str, session: dict) -> dict:
         sh = _get_sessions_spreadsheet(client, club_name)
         year = _get_year_from_date(session.get('date', ''))
         ws = _get_year_worksheet(sh, year)
-        week = _week_of_year(session.get('date', ''))
+        row = _build_session_row(session)
 
-        try:
-            dt = datetime.fromisoformat(session.get('date', ''))
-            day_name = dt.strftime('%A')
-        except Exception:
-            day_name = ''
-
-        row = [
-            session.get('id', ''),
-            f"Week {week}",
-            session.get('name', ''),
-            session.get('date', ''),
-            day_name,
-            session.get('time', ''),
-            session.get('created_by', ''),
-            session.get('created_at', datetime.now().isoformat()),
-        ]
-        ws.append_row(row, value_input_option='USER_ENTERED')
+        # Upsert: update existing row or append
+        existing_row = _find_row_by_id(ws, 1, str(session.get('id', '')))
+        if existing_row:
+            ws.update(f'A{existing_row}:H{existing_row}', [row], value_input_option='USER_ENTERED')
+        else:
+            ws.append_row(row, value_input_option='USER_ENTERED')
         return {'ok': True}
     except Exception as e:
         LOG.exception('save_session_to_sheet error: %s', e)
@@ -259,8 +370,11 @@ def _get_students_worksheet(sh):
     return ws
 
 
+STUDENT_COL_WIDTHS = [180, 180, 260, 140, 120]
+
+
 def save_student_to_sheet(club_name: str, student: dict) -> dict:
-    """Add a student row to the club's Students spreadsheet."""
+    """Upsert a student row in the club's Students spreadsheet."""
     try:
         client = _get_client()
     except Exception as e:
@@ -271,13 +385,18 @@ def save_student_to_sheet(club_name: str, student: dict) -> dict:
         sh = _get_students_spreadsheet(client, club_name)
         ws = _get_students_worksheet(sh)
         row = [
-            student.get('id', ''),
+            str(student.get('id', '')),
             student.get('name', ''),
             student.get('email', ''),
             student.get('register_no', '') or '',
             student.get('enrollment_date', '') or student.get('enrollmentDate', '') or datetime.now().strftime('%Y-%m-%d'),
         ]
-        ws.append_row(row, value_input_option='USER_ENTERED')
+        # Upsert: update existing row or append
+        existing_row = _find_row_by_id(ws, 1, row[0])
+        if existing_row:
+            ws.update(f'A{existing_row}:E{existing_row}', [row], value_input_option='USER_ENTERED')
+        else:
+            ws.append_row(row, value_input_option='USER_ENTERED')
         return {'ok': True}
     except Exception as e:
         LOG.exception('save_student_to_sheet error: %s', e)
@@ -341,6 +460,7 @@ def delete_student_from_sheet(club_name: str, student_id: str) -> dict:
 # ============================================================================
 
 ATTENDANCE_HEADERS = ['SessionID', 'SessionName', 'StudentID', 'StudentName', 'Status', 'MarkedBy', 'MarkedAt']
+ATTENDANCE_COL_WIDTHS = [180, 200, 180, 180, 90, 200, 200]
 
 
 def save_session_attendance(club_name: str, session: dict, attendance_items: list, marked_by: str) -> dict:
@@ -396,3 +516,117 @@ def save_session_attendance(club_name: str, session: dict, attendance_items: lis
     except Exception as e:
         LOG.exception('save_session_attendance error: %s', e)
         return {'ok': False, 'error': str(e)}
+
+
+# ============================================================================
+# FULL TABLE-FORMAT SYNC  —  rewrites every sheet as a clean formatted table
+# ============================================================================
+
+# Color palette for different sheet types
+_COLOR_SESSIONS = {'red': 0.16, 'green': 0.45, 'blue': 0.87}   # blue
+_COLOR_STUDENTS = {'red': 0.06, 'green': 0.72, 'blue': 0.51}   # green
+_COLOR_ATTENDANCE = {'red': 0.80, 'green': 0.33, 'blue': 0.0}  # orange
+
+
+def sync_club_as_tables(club_name: str, students: list, sessions: list,
+                         attendance_by_session: dict, student_map: dict) -> dict:
+    """
+    Rewrite all sheets for one club as clean formatted tables.
+
+    Args:
+        club_name: display name of the club
+        students: list of dicts with keys id, name, email, register_no, enrollment_date
+        sessions: list of dicts with keys id, name, date, time, created_by, created_at
+        attendance_by_session: {session_id: [{'studentId', 'studentName', 'status'}]}
+        student_map: {student_id: student_name}
+    """
+    try:
+        client = _get_client()
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+    result = {'students': None, 'sessions': None, 'attendance': []}
+
+    # ── Students table ────────────────────────────────────────
+    try:
+        sh_stu = _get_students_spreadsheet(client, club_name)
+        ws_stu = _get_students_worksheet(sh_stu)
+        student_rows = []
+        for s in students:
+            student_rows.append([
+                str(s.get('id', '')),
+                s.get('name', ''),
+                s.get('email', ''),
+                s.get('register_no', '') or '',
+                s.get('enrollment_date', '') or '',
+            ])
+        _write_table(ws_stu, STUDENT_HEADERS, student_rows, STUDENT_COL_WIDTHS, _COLOR_STUDENTS)
+        result['students'] = {'ok': True, 'count': len(student_rows)}
+    except Exception as e:
+        LOG.exception('sync students table: %s', e)
+        result['students'] = {'ok': False, 'error': str(e)}
+
+    # ── Sessions table (grouped by year) ──────────────────────
+    try:
+        sh_ses = _get_sessions_spreadsheet(client, club_name)
+
+        # Group sessions by year
+        by_year = {}
+        for ses in sessions:
+            year = _get_year_from_date(ses.get('date', ''))
+            by_year.setdefault(year, []).append(ses)
+
+        for year, year_sessions in by_year.items():
+            ws = _get_year_worksheet(sh_ses, year)
+            session_rows = [_build_session_row(s) for s in year_sessions]
+            _write_table(ws, SESSION_HEADERS, session_rows, SESSION_COL_WIDTHS, _COLOR_SESSIONS)
+
+        result['sessions'] = {'ok': True, 'count': len(sessions)}
+    except Exception as e:
+        LOG.exception('sync sessions table: %s', e)
+        result['sessions'] = {'ok': False, 'error': str(e)}
+
+    # ── Attendance tables (one per week) ──────────────────────
+    try:
+        sh_ses = _get_sessions_spreadsheet(client, club_name)
+
+        # Group attendance by week
+        att_by_week = {}
+        for ses in sessions:
+            sid = ses.get('id', '')
+            items = attendance_by_session.get(sid, [])
+            if not items:
+                continue
+            week = _week_of_year(ses.get('date', ''))
+            att_by_week.setdefault(week, [])
+            now_str = datetime.now().isoformat()
+            for item in items:
+                st_id = item.get('studentId') or item.get('student_id', '')
+                st_name = item.get('studentName') or item.get('student_name', '') or student_map.get(st_id, st_id)
+                status = item.get('status', '')
+                marked_by = item.get('marked_by', '')
+                att_by_week[week].append([
+                    sid,
+                    ses.get('name', ''),
+                    st_id,
+                    st_name,
+                    status,
+                    marked_by,
+                    now_str,
+                ])
+
+        for week, rows in att_by_week.items():
+            ws_title = f"Week {week} Attendance"
+            try:
+                ws = sh_ses.worksheet(ws_title)
+            except gspread.WorksheetNotFound:
+                ws = sh_ses.add_worksheet(title=ws_title, rows=1000, cols=len(ATTENDANCE_HEADERS))
+
+            _write_table(ws, ATTENDANCE_HEADERS, rows, ATTENDANCE_COL_WIDTHS, _COLOR_ATTENDANCE)
+            result['attendance'].append({'week': week, 'ok': True, 'count': len(rows)})
+
+    except Exception as e:
+        LOG.exception('sync attendance tables: %s', e)
+        result['attendance'].append({'ok': False, 'error': str(e)})
+
+    return {'ok': True, 'detail': result}
